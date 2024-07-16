@@ -16,14 +16,14 @@ provider "proxmox" {
 }
 
 resource "proxmox_cloud_init_disk" "ci" {
-  count = "${lookup(var.vmname.specs1, "cnt")}"
-  name      = "${lookup(var.vmname.specs1, "name")}-${count.index}"
+  for_each = var.vmname
+  name      = each.value["name"]
   pve_node  = "pve"
   storage   = "local"
 
   meta_data = yamlencode({
-    instance_id    = sha256("${lookup(var.vmname.specs1, "name")}-${count.index}")
-    local-hostname = "${lookup(var.vmname.specs1, "name")}-${count.index}"
+    instance_id    = sha256(each.value["name"])
+    local-hostname = each.value["name"]
   })
 
 
@@ -34,13 +34,13 @@ resource "proxmox_cloud_init_disk" "ci" {
     ],
     users = ["default",
     {
-      name              = var.vmname.specs1.username
+      name              = each.value["username"]
       sudo              = "ALL=(ALL) NOPASSWD:ALL"
       lock_passwd       = false
-      password          = var.vmname.specs1.password
+      passwd          = each.value["passwd"]
       shell             = "/bin/bash"
       ssh_authorized_keys = [
-        for s in var.vmname.specs1.ssh_key : s
+        for s in each.value["ssh_key"] : s
           ]
     }
     ]
@@ -67,12 +67,12 @@ network_config = yamlencode({
 }
 
 resource "proxmox_vm_qemu" "pxe-example" {
-    count = "${lookup(var.vmname.specs1, "cnt")}"
-    name  = "${lookup(var.vmname.specs1, "name")}-${count.index}"
-    clone = "${lookup(var.vmname.specs1, "template")}"
+    for_each = var.vmname
+    name  = each.value["name"]
+    clone = each.value["template"]
     agent                     = 1
     automatic_reboot          = true
-    balloon                   = 1
+    balloon                   = 0
     bios                      = "seabios"
     cores                     = 2
     cpu                       = "host"
@@ -80,7 +80,7 @@ resource "proxmox_vm_qemu" "pxe-example" {
     force_create              = false
     hotplug                   = "disk,usb,network"
     kvm                       = true
-    memory                    = "${lookup(var.vmname.specs1, "memory")}"
+    memory                    = each.value["memory"]
     numa                      = false
     onboot                    = true
     vm_state                  = "running"
@@ -98,7 +98,7 @@ resource "proxmox_vm_qemu" "pxe-example" {
  scsi {
       scsi0 {
         cdrom {
-          iso = "${proxmox_cloud_init_disk.ci[count.index].id}"
+          iso = "${proxmox_cloud_init_disk.ci["${each.value["name"]}"].id}"
         }
       }
     }
@@ -110,8 +110,8 @@ resource "proxmox_vm_qemu" "pxe-example" {
 #                    discard            = true
 #                    emulatessd         = true
 #                    iothread           = true
-                    size               = "${lookup(var.vmname.specs1, "disk")}"
-                    storage            = "${lookup(var.vmname.specs1, "storage")}"
+                    size               = each.value["disk"]
+                    storage            = each.value["storage"]
                 }
             }
         }
@@ -128,7 +128,7 @@ resource "proxmox_vm_qemu" "pxe-example" {
         family       = "VM"
         manufacturer = "Hashibrown"
         product      = "Terraform"
-        sku          = md5("${lookup(var.vmname.specs1, "name")}-${count.index}")
+        sku          = md5(each.value["name"])
         # uuid         = "5b710d2f-4ea2-4d49-9eaa-c18392fd734d"
         version      = "v1.0"
         serial       = "ABC123"
