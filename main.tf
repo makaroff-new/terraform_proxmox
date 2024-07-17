@@ -16,14 +16,14 @@ provider "proxmox" {
 }
 
 resource "proxmox_cloud_init_disk" "ci" {
-  for_each = var.vmname
-  name      = each.value["name"]
+  for_each = { for inst in var.VMs : inst.namevm => inst }
+  name      =  each.value["namevm"]
   pve_node  = "pve"
   storage   = "local"
 
   meta_data = yamlencode({
-    instance_id    = sha256(each.value["name"])
-    local-hostname = each.value["name"]
+    instance_id    = sha256(each.value["namevm"])
+    local-hostname = each.value["namevm"]
   })
 
 
@@ -67,8 +67,8 @@ network_config = yamlencode({
 }
 
 resource "proxmox_vm_qemu" "pxe-example" {
-    for_each = var.vmname
-    name  = each.value["name"]
+    for_each = { for inst in var.VMs : inst.namevm => inst }
+    name  = each.value["namevm"]
     clone = each.value["template"]
     agent                     = 1
     automatic_reboot          = true
@@ -98,7 +98,9 @@ resource "proxmox_vm_qemu" "pxe-example" {
  scsi {
       scsi0 {
         cdrom {
-          iso = "${proxmox_cloud_init_disk.ci["${each.value["name"]}"].id}"
+          //iso = "local:iso/tf-ci-${each.value["namevm"]}.iso"
+        iso = proxmox_cloud_init_disk.ci["${each.value["namevm"]}"].id
+         //            proxmox_cloud_init_disk.ci["prom-rockylinux-01"]
         }
       }
     }
@@ -128,7 +130,7 @@ resource "proxmox_vm_qemu" "pxe-example" {
         family       = "VM"
         manufacturer = "Hashibrown"
         product      = "Terraform"
-        sku          = md5(each.value["name"])
+        sku          = md5(each.value["namevm"])
         # uuid         = "5b710d2f-4ea2-4d49-9eaa-c18392fd734d"
         version      = "v1.0"
         serial       = "ABC123"
